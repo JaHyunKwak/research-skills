@@ -9,8 +9,10 @@
   within noise; never upgrade "consistent with" to causal language.
 - Every number in a manuscript traces to a file in a results folder. When a number changes,
   grep text, legends and supplement for the old value before finishing.
-- Shared server: check free GPU/RAM before heavy jobs (`get-available-resources`);
-  `rm`/`rmdir` are denied — move to `_trash/` instead. Never overwrite a dated results folder.
+- Shared server: check free GPU/RAM before heavy jobs (`get-available-resources`).
+  Never delete files — move them to `_trash/`. Never overwrite a dated results folder.
+- Do not install packages into the conda environment (`uv pip install`, `pip install`,
+  `conda install`) without asking first, even when a skill tells you to.
 - Prefer the installed skills (`/skills`): they encode this lab's conventions. When a task
   matches a skill description, use the skill instead of improvising.
 - Project map: each project folder has its own `CLAUDE.md`; when I name a project, read that

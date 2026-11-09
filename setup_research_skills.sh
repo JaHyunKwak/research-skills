@@ -18,15 +18,17 @@
 #    bash setup_research_skills.sh --no-custom   # skip the custom-skills repo
 #    bash setup_research_skills.sh --list        # print the skill lists and exit
 #    bash setup_research_skills.sh --uninstall   # remove our symlinks only
+#    bash setup_research_skills.sh --deny-rm     # add Bash(rm *)/Bash(rmdir *) deny rules to ~/.claude/settings.json
+#    bash setup_research_skills.sh --budget 0.02 # set skillListingBudgetFraction (see README: listing budget)
 #
 #  Re-running is safe (idempotent). To add/remove a skill, edit the arrays
 #  below and run again: symlinks not in the list are pruned, new ones added.
 #
 #  Claude Desktop "SSH" sessions: Claude Code runs ON the server and reads the
 #  server's ~/.claude/skills/, so run this script on the server (the session's
-#  integrated terminal, Ctrl+`, is fine). Plugins in SSH sessions are managed
-#  from the Desktop app's "+" menu and copied to ~/.claude/remote/plugins/, so
-#  there you can pass --no-plugins and add skill-creator / bio-research in the app.
+#  integrated terminal, Ctrl+`, is fine). When the session is signed in with a
+#  claude.ai account, skill-creator, bio-research and docx/pptx/xlsx/pdf already
+#  arrive through claude.ai sync — pass --no-plugins there.
 #
 #  Sources
 #    K-Dense-AI/scientific-agent-skills  (MIT)        177 skills
@@ -144,12 +146,33 @@ SRC_ROOT="${CLAUDE_SKILL_SOURCES:-$CLAUDE_HOME/skill-sources}"
 SKILLS_DIR="$CLAUDE_HOME/skills"
 MANIFEST="$SRC_ROOT/installed-skills.txt"
 
-DRY_RUN=false; EXTRA=false; WITH_DOCS=false; DO_PLUGINS=true; DO_CUSTOM=true
-UPDATE=false; UNINSTALL=false; LIST_ONLY=false
+usage() {
+  cat <<'USAGE'
+setup_research_skills.sh — curated Claude Code skills for research (user scope)
 
-for arg in "$@"; do
+  --dry-run              show what would change, write nothing
+  --extra                also install the EXTRA tier
+  --update               git pull every source, re-link
+  --with-anthropic-docs  link docx/pptx/xlsx/pdf from anthropics/skills (API-key logins only)
+  --no-plugins           skip `claude plugin` steps (Desktop SSH sessions, claude.ai sync)
+  --no-custom            skip the custom-skills repo
+  --deny-rm              add Bash(rm *) and Bash(rmdir *) to permissions.deny in ~/.claude/settings.json
+  --budget <fraction>    set skillListingBudgetFraction in ~/.claude/settings.json (e.g. 0.02)
+  --list                 print the skill lists and exit
+  --uninstall            remove the symlinks this script created (sources and plugins stay)
+USAGE
+}
+
+DRY_RUN=false; EXTRA=false; WITH_DOCS=false; DO_PLUGINS=true; DO_CUSTOM=true
+UPDATE=false; UNINSTALL=false; LIST_ONLY=false; DENY_RM=false; BUDGET=""
+
+while [ $# -gt 0 ]; do
+  arg="$1"; shift
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
+    --deny-rm) DENY_RM=true ;;
+    --budget) BUDGET="${1:-}"; shift || true
+              [[ "$BUDGET" =~ ^0?\.[0-9]+$|^1$|^0$ ]] || { echo "--budget needs a fraction like 0.02"; exit 2; } ;;
     --extra) EXTRA=true ;;
     --with-anthropic-docs) WITH_DOCS=true ;;
     --no-plugins) DO_PLUGINS=false ;;
@@ -157,7 +180,7 @@ for arg in "$@"; do
     --update) UPDATE=true ;;
     --uninstall) UNINSTALL=true ;;
     --list) LIST_ONLY=true ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $arg (see --help)"; exit 2 ;;
   esac
 done
@@ -221,7 +244,13 @@ sync_repo() {
   if [ -d "$dir/.git" ]; then
     if $UPDATE; then
       echo "Updating $(basename "$dir") ..."
-      run git -C "$dir" pull --ff-only --quiet || c_warn "  pull failed (offline?) — using the existing checkout"
+      if ! run git -C "$dir" pull --ff-only --quiet; then
+        if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]; then
+          c_warn "  pull failed: $(basename "$dir") has local edits (git -C $dir status). Keep them in custom-skills/ instead, or run: git -C $dir stash && re-run --update"
+        else
+          c_warn "  pull failed for $(basename "$dir") (network, or upstream history rewritten) — using the existing checkout"
+        fi
+      fi
     fi
   else
     echo "Cloning $(basename "$dir") ..."
@@ -267,7 +296,7 @@ sync_repo "$REPO_BIOSKILLS" "$BIO_DIR" "${BIO_SEL[@]}"
 echo "Linking bioSkills ..."
 for cs in "${BIO_SEL[@]}"; do
   cat="${cs%%/*}"; sk="${cs##*/}"
-  link_skill "bio-${cat}-${sk}" "$BIO_DIR/$cs"     # matches the frontmatter `name:`
+  link_skill "bio-${cat}-${sk}" "$BIO_DIR/$cs"     # upstream installer naming; a few SKILL.md `name:` fields differ (bio-<skill>) — both names work
 done
 
 # anthropics/skills document skills (optional)
@@ -283,7 +312,7 @@ fi
 if $DO_CUSTOM && [ -n "$CUSTOM_REPO" ]; then
   CU_DIR="$SRC_ROOT/research-skills"
   if [ -d "$CU_DIR/.git" ] || $DRY_RUN; then
-    $UPDATE && { echo "Updating research-skills ..."; run git -C "$CU_DIR" pull --ff-only --quiet || c_warn "  pull failed — using the existing checkout"; }
+    $UPDATE && { echo "Updating research-skills ..."; run git -C "$CU_DIR" pull --ff-only --quiet || c_warn "  pull failed for research-skills (local edits? network?) — using the existing checkout"; }
     $DRY_RUN && [ ! -d "$CU_DIR/.git" ] && echo "  [dry-run] git clone --depth 1 $CUSTOM_REPO $CU_DIR"
   else
     echo "Cloning research-skills (your custom skills) ..."
@@ -321,6 +350,31 @@ if ! $DRY_RUN; then
   done
 fi
 
+# ---- optional settings.json edits (--deny-rm / --budget) -----------------------
+# Merges keys into ~/.claude/settings.json with python3; keeps a timestamped backup.
+settings_merge() {   # settings_merge <python-expr applied to dict `d`>
+  local f="$CLAUDE_HOME/settings.json"
+  if $DRY_RUN; then echo "  [dry-run] edit $f: $1"; return; fi
+  command -v python3 >/dev/null || { c_warn "python3 missing — edit $f by hand: $1"; return; }
+  [ -f "$f" ] && cp "$f" "$f.bak.$(date +%Y%m%d%H%M%S)"
+  python3 - "$f" "$1" <<'PY' || c_warn "  could not update $f (invalid JSON?) — backup kept"
+import json, sys, os
+f, expr = sys.argv[1], sys.argv[2]
+d = json.load(open(f)) if os.path.exists(f) and os.path.getsize(f) else {}
+exec(expr)
+json.dump(d, open(f, "w"), indent=2, ensure_ascii=False); open(f, "a").write("\n")
+print("  updated", f)
+PY
+}
+if $DENY_RM; then
+  echo "Adding rm/rmdir deny rules ..."
+  settings_merge 'p=d.setdefault("permissions",{}); L=p.setdefault("deny",[]); [L.append(r) for r in ("Bash(rm *)","Bash(rmdir *)") if r not in L]'
+fi
+if [ -n "$BUDGET" ]; then
+  echo "Setting skillListingBudgetFraction=$BUDGET ..."
+  settings_merge "d['skillListingBudgetFraction']=float('$BUDGET')"
+fi
+
 # ---- plugins -------------------------------------------------------------------
 if $DO_PLUGINS; then
   [ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"   # native-installer location
@@ -352,14 +406,18 @@ fi
 echo
 c_ok "Done. ${#LINKED[@]} skill(s) linked, $pruned pruned, $broken broken."
 $DRY_RUN || { echo "Manifest: $MANIFEST"; }
-command -v uv >/dev/null 2>&1 || c_warn "Note: several K-Dense skills run helper scripts with 'uv'. Install it once:  curl -LsSf https://astral.sh/uv/install.sh | sh"
+command -v uv >/dev/null 2>&1 || echo "Note: some K-Dense skills call 'uv' for helper scripts and may suggest 'uv pip install'. Optional — in a fixed conda environment prefer NOT to install it; the CLAUDE.md templates tell Claude to ask before installing packages."
 cat <<'EOF'
 
 Next steps (inside Claude Code on this machine):
   /reload-skills      pick up the new skills without restarting (or just start a new session)
   /skills             check the list; synced claude.ai skills show under "claude.ai sync"
   /skill-doctor       after a week or two: per-skill context cost + usage → prune unused ones
-  /plugin             confirm skill-creator and bio-research are enabled
+  /doctor             check the skill LISTING budget (1% of context): if it overflows, descriptions
+                      are dropped (least-used first = your new skills) and auto-use stops working.
+                      Fix: turn off unrelated claude.ai plugins (sales, marketing, …) and/or
+                      re-run with --budget 0.02
+  /plugin             confirm skill-creator and bio-research are enabled (claude.ai sync or CLI)
   /mcp                PubMed / bioRxiv / ChEMBL / Open Targets connect without login;
                       ignore (or /mcp disable) the ones that ask for an account
 

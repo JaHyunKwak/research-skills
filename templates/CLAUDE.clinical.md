@@ -3,6 +3,8 @@
 > Template from JaHyunKwak/research-skills. Fill the "Project" section from the actual
 > repository layout, delete the routing rows that don't apply (keep either the
 > chromatin/multiome block or the cohort-statistics block, or both), keep the file short.
+> If this folder (or one above it) has a Codex `AGENTS.md`, add a line containing only
+> `@AGENTS.md` here: Claude Code stops reading AGENTS.md once a CLAUDE.md exists.
 
 ## Project (fill in)
 
@@ -20,7 +22,10 @@
 - Patient/donor is the unit of independence: use donor-block bootstrap / permutation, never
   treat site × donor × cell-type observations as independent.
 - Causal language only when the design supports it; default to "consistent with".
-- `rm`/`rmdir` are denied by settings — move things to `_trash/` instead.
+- Never delete files; move them to `_trash/` instead. (Deletion is only blocked if a
+  `Bash(rm *)` deny rule is set — check with `/permissions` or run the installer with `--deny-rm`.)
+- Do not install packages into the conda environment (`uv pip install`, `pip install`,
+  `conda install`) without asking first — several skills suggest it.
 
 ## Skill routing — invoke these yourself, without being asked
 
@@ -44,7 +49,7 @@
 |---|---|
 | group comparisons, regression, assumptions, effect sizes | `statistical-analysis`, `statsmodels` |
 | multiple testing, power, sample size, batch confounding | `bio-experimental-design-multiple-testing`, `bio-experimental-design-power-analysis`, `bio-experimental-design-sample-size`, `bio-experimental-design-batch-design` |
-| survival / logistic / Table 1 / CONSORT-style reporting | install `--extra` tier: `bio-clinical-biostatistics-*`, `bio-machine-learning-survival-analysis` |
+| survival / logistic / CONSORT-style reporting | only if the `--extra` tier is installed: `bio-clinical-biostatistics-*`, `bio-machine-learning-survival-analysis`; otherwise `statistical-analysis` + `statsmodels` (delete this row if not installed) |
 
 **Figures, tables, writing (always)**
 
@@ -53,6 +58,6 @@
 | any publication figure | `scientific-visualization`, `bio-data-visualization-multipanel-figures`, `bio-reporting-figure-export`, `bio-data-visualization-color-palettes`, `bio-data-visualization-statistical-annotation` |
 | heatmaps, volcano/MA | `bio-data-visualization-heatmaps-clustering`, `bio-data-visualization-volcano-and-ma-plots` |
 | Table 1, result tables, supplementary tables | `bio-reporting-publication-tables` |
-| manuscript sections, references, cover letter, venue formatting | `scientific-writing`, `citation-management`, `paper-lookup`, `venue-templates` |
+| manuscript sections, references, cover letter, Korean explanations | `writing-conventions` (always), `scientific-writing`, `citation-management`, `paper-lookup`, `venue-templates` |
 | pre-submission audit (claim ledger, figure–text consistency, stats) | `manuscript-review`, `peer-review` |
-| seminar / conference slides | `scientific-slides` |
+| seminar / conference slides | `scientific-slides` for the build; styling follows `writing-conventions` (ink-on-white, native equation objects) over its "visually engaging" defaults |

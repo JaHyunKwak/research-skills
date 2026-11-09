@@ -2,6 +2,8 @@
 
 > Template from JaHyunKwak/research-skills. Fill the "Project" section from the actual
 > repository layout, delete rows that don't apply, keep the whole file short.
+> If this folder (or one above it) has a Codex `AGENTS.md`, add a line containing only
+> `@AGENTS.md` here: Claude Code stops reading AGENTS.md once a CLAUDE.md exists.
 
 ## Project (fill in)
 
@@ -24,7 +26,10 @@
 - Check `genomic-coordinates` conventions whenever VCF/BED/BAM or hg19/GRCh38 cross a tool
   boundary. Left-align/normalize before comparing variants across callers.
 - Before any heavy job on the shared server, check resources (`get-available-resources`).
-- `rm`/`rmdir` are denied by settings — move things to `_trash/` instead.
+- Never delete files; move them to `_trash/` instead. (Deletion is only blocked if a
+  `Bash(rm *)` deny rule is set — check with `/permissions` or run the installer with `--deny-rm`.)
+- Do not install packages into the conda environment (`uv pip install`, `pip install`,
+  `conda install`) without asking first — several skills suggest it.
 
 ## Skill routing — invoke these yourself, without being asked
 
@@ -42,7 +47,7 @@
 | donor × gene variant matrix | `bio-data-visualization-oncoprint-mutation-matrices` |
 | any publication figure | `scientific-visualization`, `bio-data-visualization-multipanel-figures`, `bio-reporting-figure-export`, `bio-data-visualization-color-palettes` |
 | Table 1 / result tables / supplementary tables | `bio-reporting-publication-tables` |
-| thesis chapters, abstract, methods text | `scientific-writing`, `venue-templates`, `citation-management`, `paper-lookup` |
+| thesis chapters, abstract, methods text, Korean explanations | `writing-conventions` (always), `scientific-writing`, `venue-templates`, `citation-management`, `paper-lookup` |
 | before sending a chapter to the advisor | `manuscript-review` |
-| defense / lab-seminar slides | `scientific-slides` |
+| defense / lab-seminar slides | `scientific-slides` for the build; styling follows `writing-conventions` (ink-on-white, native equation objects) over its "visually engaging" defaults |
 | GPU acceleration of slow pandas/sklearn code | `optimize-for-gpu` |

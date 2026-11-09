@@ -51,9 +51,9 @@ CONSORT trial reporting, missing data, subgroup), survival models, more plots, Q
 Jupyter reports, scvi-tools, pydeseq2, literature-review.
 
 Plugins (`skill-creator`, Anthropic's `bio-research` with PubMed / bioRxiv / ChEMBL /
-Open Targets MCP connectors) are installed with `claude plugin install` when the CLI is
-on PATH. In Claude Desktop SSH sessions plugins come from the app's **+** menu instead —
-pass `--no-plugins` there.
+Open Targets MCP connectors) are installed with `claude plugin install` when the CLI is on
+PATH. When Claude Code is signed in with a claude.ai account — including Claude Desktop SSH
+sessions — both already arrive through claude.ai sync, so pass `--no-plugins`.
 
 ## Usage
 
@@ -64,6 +64,8 @@ bash setup_research_skills.sh --extra          # core + extra
 bash setup_research_skills.sh --update         # git pull all sources, re-link
 bash setup_research_skills.sh --list           # print the lists
 bash setup_research_skills.sh --uninstall      # remove our symlinks only
+bash setup_research_skills.sh --deny-rm        # add Bash(rm *)/Bash(rmdir *) deny rules (settings.json, with backup)
+bash setup_research_skills.sh --budget 0.02    # raise the skill-listing budget (see below)
 ```
 
 Then inside Claude Code: `/reload-skills` (first time), `/skills` to verify,
@@ -71,11 +73,34 @@ Then inside Claude Code: `/reload-skills` (first time), `/skills` to verify,
 GATK, samtools etc. must exist in the conda environment; each `SKILL.md` lists its
 prerequisites. Several K-Dense helper scripts use [`uv`](https://docs.astral.sh/uv/).
 
+## The skill-listing budget (read this once)
+
+Claude Code shows Claude a listing of every skill's name + description on every turn, capped at
+**1% of the context window** (~40k characters on a 1M-context model). Past the cap it keeps the
+names but **drops descriptions, least-used skills first** — and freshly installed skills have
+never been used, so they are the first to go blank and stop auto-triggering. Every plugin
+enabled on your claude.ai account syncs its skills into the same listing: on this server the
+total was ~140k characters (72 installed skills 35k + 18 synced skills 10k + **213 plugin skills
+94k** — sales, marketing, finance, legal, …).
+
+What to do, in order:
+1. On claude.ai / the Desktop app, turn off plugins unrelated to research. They stop syncing.
+2. `bash setup_research_skills.sh --budget 0.02` (2% ≈ 80k chars) if the listing still overflows.
+3. `/doctor` shows the listing's cost and biggest contributors; `/context` shows the Skills row;
+   `/skill-doctor` after a couple of weeks lists skills never invoked — prune those.
+
+## AGENTS.md (Codex) next to CLAUDE.md
+
+Claude Code reads a folder's `AGENTS.md` only while no `CLAUDE.md` exists in that folder or
+above it. If a project already has a Codex `AGENTS.md`, put a line containing only `@AGENTS.md`
+in the new `CLAUDE.md` so both agents keep the same rules. The templates say so in their header.
+
 ## Layout
 
 ```
-setup_research_skills.sh     installer (edit the arrays at the top to change the set)
+setup_research_skills.sh      installer (edit the arrays at the top to change the set)
 custom-skills/<name>/SKILL.md my own skills — see custom-skills/README.md
+templates/CLAUDE.*.md         per-project / user-level CLAUDE.md starting points
 ```
 
 ## Design notes
@@ -84,7 +109,8 @@ custom-skills/<name>/SKILL.md my own skills — see custom-skills/README.md
   so `git pull` updates everything and nothing is duplicated on disk (~15 MB total).
 - **Sparse clones**: only the selected skill directories are checked out
   (`git sparse-checkout`, cone mode); falls back to a full shallow clone on git < 2.25.
-- **bioSkills names** follow the upstream installer convention `bio-<category>-<skill>`.
+- **bioSkills names** follow the upstream installer convention `bio-<category>-<skill>`; a few
+  upstream `SKILL.md` files carry a shorter `name:` (`bio-vcf-manipulation`) — both names resolve.
 - **Safety**: skills can run code. Upstream libraries are security-scanned
   (K-Dense: Cisco skill-scanner weekly), but bioSkills is archived and unpatched — read a
   `SKILL.md` before relying on it, and keep `/skill-doctor` honest.
