@@ -64,7 +64,7 @@ bash setup_research_skills.sh --extra          # core + extra
 bash setup_research_skills.sh --update         # git pull all sources, re-link
 bash setup_research_skills.sh --list           # print the lists
 bash setup_research_skills.sh --uninstall      # remove our symlinks only
-bash setup_research_skills.sh --deny-rm        # add Bash(rm *)/Bash(rmdir *) deny rules (settings.json, with backup)
+bash setup_research_skills.sh --deny-rm        # deny Bash(rm *)/Bash(rmdir *) in settings.json (direct rm/rmdir incl. chains and /bin/rm; not find -delete)
 bash setup_research_skills.sh --budget 0.02    # raise the skill-listing budget (see below)
 ```
 
@@ -76,17 +76,25 @@ prerequisites. Several K-Dense helper scripts use [`uv`](https://docs.astral.sh/
 ## The skill-listing budget (read this once)
 
 Claude Code shows Claude a listing of every skill's name + description on every turn, capped at
-**1% of the context window** (~40k characters on a 1M-context model). Past the cap it keeps the
-names but **drops descriptions, least-used skills first** — and freshly installed skills have
-never been used, so they are the first to go blank and stop auto-triggering. Every plugin
-enabled on your claude.ai account syncs its skills into the same listing: on this server the
-total was ~140k characters (72 installed skills 35k + 18 synced skills 10k + **213 plugin skills
-94k** — sales, marketing, finance, legal, …).
+**1% of the context window**. Characters per token are model-specific (3 for Opus 5.x, 4 for the
+Claude 3/4 families), so on a 1M-context Opus 5.x session 1% ≈ **30k characters** and
+`--budget 0.02` ≈ 60k. Past the cap the listing keeps every name but **drops descriptions**:
+built-in skills always keep theirs, the rest are ranked by a usage score (invocations × recency,
+7-day half-life), ties — i.e. everything you have never used — fall back to listing order, where
+`~/.claude/skills/` entries come before plugin skills. A skill with no description does not
+auto-trigger; it only works when named (by you, or by a `CLAUDE.md` routing table).
+
+Every plugin enabled on your claude.ai account syncs its skills into the same listing. Measured on
+this server (Claude Code 2.1.317, from the listing actually sent to the model): full text would be
+~166k characters, of which the 72 installed research skills are ~37k; at the default 1% only 26 of
+them kept a description, at 2% all 72 did.
 
 What to do, in order:
-1. On claude.ai / the Desktop app, turn off plugins unrelated to research. They stop syncing.
-2. `bash setup_research_skills.sh --budget 0.02` (2% ≈ 80k chars) if the listing still overflows.
-3. `/doctor` shows the listing's cost and biggest contributors; `/context` shows the Skills row;
+1. On claude.ai (Settings → Customize → Plugins, "⋯ → Remove") drop plugins unrelated to
+   research. Restart the Desktop app afterwards so SSH sessions receive the new plugin set.
+2. `bash setup_research_skills.sh --budget 0.02` (writes `skillListingBudgetFraction` to
+   `~/.claude/settings.json`, with a backup). The research skills fit at 2%.
+3. `/context` shows the Skills row as the model receives it (`/doctor` only estimates from disk);
    `/skill-doctor` after a couple of weeks lists skills never invoked — prune those.
 
 ## AGENTS.md (Codex) next to CLAUDE.md

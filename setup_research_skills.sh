@@ -18,7 +18,8 @@
 #    bash setup_research_skills.sh --no-custom   # skip the custom-skills repo
 #    bash setup_research_skills.sh --list        # print the skill lists and exit
 #    bash setup_research_skills.sh --uninstall   # remove our symlinks only
-#    bash setup_research_skills.sh --deny-rm     # add Bash(rm *)/Bash(rmdir *) deny rules to ~/.claude/settings.json
+#    bash setup_research_skills.sh --deny-rm     # deny Bash(rm *)/Bash(rmdir *) in ~/.claude/settings.json
+#                                                (direct rm/rmdir incl. chains and /bin/rm; NOT find -delete)
 #    bash setup_research_skills.sh --budget 0.02 # set skillListingBudgetFraction (see README: listing budget)
 #
 #  Re-running is safe (idempotent). To add/remove a skill, edit the arrays
@@ -156,7 +157,7 @@ setup_research_skills.sh — curated Claude Code skills for research (user scope
   --with-anthropic-docs  link docx/pptx/xlsx/pdf from anthropics/skills (API-key logins only)
   --no-plugins           skip `claude plugin` steps (Desktop SSH sessions, claude.ai sync)
   --no-custom            skip the custom-skills repo
-  --deny-rm              add Bash(rm *) and Bash(rmdir *) to permissions.deny in ~/.claude/settings.json
+  --deny-rm              deny Bash(rm *) and Bash(rmdir *) in ~/.claude/settings.json (direct rm/rmdir incl. chains and /bin/rm; not find -delete)
   --budget <fraction>    set skillListingBudgetFraction in ~/.claude/settings.json (e.g. 0.02)
   --list                 print the skill lists and exit
   --uninstall            remove the symlinks this script created (sources and plugins stay)
@@ -352,11 +353,14 @@ fi
 
 # ---- optional settings.json edits (--deny-rm / --budget) -----------------------
 # Merges keys into ~/.claude/settings.json with python3; keeps a timestamped backup.
+SETTINGS_BACKED_UP=false
 settings_merge() {   # settings_merge <python-expr applied to dict `d`>
   local f="$CLAUDE_HOME/settings.json"
   if $DRY_RUN; then echo "  [dry-run] edit $f: $1"; return; fi
   command -v python3 >/dev/null || { c_warn "python3 missing — edit $f by hand: $1"; return; }
-  [ -f "$f" ] && cp "$f" "$f.bak.$(date +%Y%m%d%H%M%S)"
+  if [ -f "$f" ] && ! $SETTINGS_BACKED_UP; then     # one backup per run = the pre-run original
+    cp "$f" "$f.bak.$(date +%Y%m%d%H%M%S).$$"; SETTINGS_BACKED_UP=true
+  fi
   python3 - "$f" "$1" <<'PY' || c_warn "  could not update $f (invalid JSON?) — backup kept"
 import json, sys, os
 f, expr = sys.argv[1], sys.argv[2]
@@ -413,10 +417,10 @@ Next steps (inside Claude Code on this machine):
   /reload-skills      pick up the new skills without restarting (or just start a new session)
   /skills             check the list; synced claude.ai skills show under "claude.ai sync"
   /skill-doctor       after a week or two: per-skill context cost + usage → prune unused ones
-  /doctor             check the skill LISTING budget (1% of context): if it overflows, descriptions
-                      are dropped (least-used first = your new skills) and auto-use stops working.
-                      Fix: turn off unrelated claude.ai plugins (sales, marketing, …) and/or
-                      re-run with --budget 0.02
+  /context            Skills row = the listing as the model receives it (/doctor only estimates
+                      from disk). Budget is 1% of context (≈30k chars on 1M Opus 5.x); skills that
+                      lose their description stop auto-triggering. Fix: remove unrelated claude.ai
+                      plugins, restart the Desktop app, and/or re-run with --budget 0.02
   /plugin             confirm skill-creator and bio-research are enabled (claude.ai sync or CLI)
   /mcp                PubMed / bioRxiv / ChEMBL / Open Targets connect without login;
                       ignore (or /mcp disable) the ones that ask for an account
