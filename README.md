@@ -88,3 +88,17 @@ custom-skills/<name>/SKILL.md my own skills — see custom-skills/README.md
 - **Safety**: skills can run code. Upstream libraries are security-scanned
   (K-Dense: Cisco skill-scanner weekly), but bioSkills is archived and unpatched — read a
   `SKILL.md` before relying on it, and keep `/skill-doctor` honest.
+
+## Per-project `CLAUDE.md` templates
+
+Skills load automatically, but with ~70 of them the match is only as good as the request.
+A short project `CLAUDE.md` with a *task → skill* routing table makes Claude reach for the
+right one unprompted. Two templates live in `templates/`; in a project session on the server:
+
+```
+Read https://raw.githubusercontent.com/JaHyunKwak/research-skills/main/templates/CLAUDE.thesis.md
+and write this repository's CLAUDE.md from it: fill the Project section from the actual layout,
+drop routing rows that don't apply, keep it under 80 lines.
+```
+
+(`CLAUDE.clinical.md` for the clinical paper.) `/memory` shows what Claude loaded.
