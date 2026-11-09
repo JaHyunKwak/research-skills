@@ -101,4 +101,7 @@ and write this repository's CLAUDE.md from it: fill the Project section from the
 drop routing rows that don't apply, keep it under 80 lines.
 ```
 
-(`CLAUDE.clinical.md` for the clinical paper.) `/memory` shows what Claude loaded.
+(`CLAUDE.clinical.md` for the clinical paper.) When both projects live in one workspace, put each
+file in its project subfolder — subfolder `CLAUDE.md` files load on demand when Claude touches a
+file there — and keep only shared rules at the root (or in `~/.claude/CLAUDE.md`, see
+`templates/CLAUDE.user.md`). `/context` shows which memory files are loaded.
